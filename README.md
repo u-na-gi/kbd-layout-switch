@@ -1,57 +1,77 @@
 # kbd-layout-switch
 
-Bluetooth キーボードの接続状態に合わせて、GNOME のキーボード配列を自動で切り替える常駐スクリプト。
+Switch the GNOME keyboard layout automatically when a Bluetooth keyboard
+connects or disconnects.
 
-- 外付けキーボード (既定: 名前が `Split65` で始まるデバイス) が接続中 → US 配列
-- 未接続 → JIS 配列 (内蔵キーボード用)
+For example: a laptop with a built-in JIS keyboard and an external US
+keyboard. While the external keyboard is connected the layout is `us`; when it
+disconnects the layout goes back to `jp`.
 
-GNOME にはデバイスごとに配列を割り当てる設定がないため、BlueZ の D-Bus イベントを監視して
-`org.gnome.desktop.input-sources` の xkb ソースを書き換えている。
+GNOME has no per-device layout setting, so this program listens for BlueZ
+events on D-Bus and rewrites the xkb entry of
+`org.gnome.desktop.input-sources sources`.
 
-## 動作環境
+## Requirements
 
-- GNOME (Wayland / X11)
+- GNOME (Wayland or X11), with the `gsettings` command
 - BlueZ
-- Python 3 + PyGObject (`python3-gobject`)
+- systemd, for the user service
+- A Rust toolchain to build it
 
-Fedora 45 / GNOME 51 で動作確認。
+Tested on Fedora 45 with GNOME 51.
 
-## インストール
+## Install
 
 ```sh
-./install.sh
+cargo install --git https://github.com/u-na-gi/kbd-layout-switch
 ```
 
-`~/.local/bin/kbd-layout-switch` と systemd ユーザーサービスを配置して起動する。
-以降はログイン時に自動で起動する。
+Then install and start the systemd user service. `--device` is a prefix of the
+keyboard's name as shown by `bluetoothctl devices`:
 
-## 設定
+```sh
+kbd-layout-switch install --device Split65
+```
 
-`kbd-layout-switch` 冒頭の定数を書き換える。
+The service starts with your graphical session from then on. To change the
+options, run `install` again with the new ones. After upgrading with
+`cargo install`, run `systemctl --user restart kbd-layout-switch`.
 
-| 定数 | 既定値 | 意味 |
+## Options
+
+`install` and `run` take the same options.
+
+| Option | Default | Meaning |
 | --- | --- | --- |
-| `DEVICE_NAME_PREFIX` | `Split65` | 対象デバイス名の先頭一致 |
-| `EXTERNAL_LAYOUT` | `us` | 接続中の配列 |
-| `INTERNAL_LAYOUT` | `jp` | 未接続時の配列 |
+| `--device <PREFIX>` | (required) | Name prefix of the Bluetooth keyboard |
+| `--connected <LAYOUT>` | `us` | Layout while the keyboard is connected |
+| `--disconnected <LAYOUT>` | `jp` | Layout while it is not connected |
 
-## 挙動メモ
+A layout is an xkb layout, optionally with a variant: `us`, `jp`,
+`us+dvorak`.
 
-- 配列は全キーボード共通。外付け接続中は内蔵キーボードも `EXTERNAL_LAYOUT` になる。
-- xkb 以外の入力ソース (ibus の Mozc など) はそのまま残す。
-- 切り替え直後は xkb ソース (直接入力) が選択された状態になる。
-  新しいキーマップを確実に読み込ませるため、いったん xkb ソースだけにしてから元に戻している。
+`kbd-layout-switch run` runs the watcher in the foreground without systemd.
 
-## ログ
+## Behavior
+
+- The layout applies to every keyboard. While the external keyboard is
+  connected, the built-in keyboard uses its layout too.
+- Input sources other than xkb, such as Mozc through IBus, are kept. Several
+  xkb sources are replaced by the single selected layout.
+- Right after a switch the xkb source (direct input) is selected. An input
+  method keeps the keymap that was loaded last, so the program briefly leaves
+  only the xkb source in the list to make GNOME Shell load the new keymap, then
+  restores the others.
+
+## Logs
 
 ```sh
-journalctl --user -u kbd-layout-switch.service
+journalctl --user -u kbd-layout-switch
 ```
 
-## アンインストール
+## Uninstall
 
 ```sh
-systemctl --user disable --now kbd-layout-switch.service
-rm ~/.local/bin/kbd-layout-switch ~/.config/systemd/user/kbd-layout-switch.service
-systemctl --user daemon-reload
+kbd-layout-switch uninstall
+cargo uninstall kbd-layout-switch
 ```
