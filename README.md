@@ -27,14 +27,14 @@ events on D-Bus and rewrites the xkb entry of
 ## Install
 
 ```sh
-cargo install --git https://github.com/u-na-gi/kbd-layout-switch
+cargo install kbd-layout-switch
 ```
 
 Or, to download a prebuilt binary instead of compiling, with
 [cargo-binstall](https://github.com/cargo-bins/cargo-binstall):
 
 ```sh
-cargo binstall --git https://github.com/u-na-gi/kbd-layout-switch kbd-layout-switch
+cargo binstall kbd-layout-switch
 ```
 
 Prebuilt binaries are static and available for x86_64 and aarch64 Linux.
