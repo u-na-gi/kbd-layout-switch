@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  TAG: ${{ github.ref_name }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check that the tag matches the crate version
+        run: test "v$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')" = "$TAG"
+      - name: Create the release
+        run: gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --generate-notes
+
+  build:
+    needs: release
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    env:
+      TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the Rust target
+        run: rustup toolchain install stable --profile minimal --target "$TARGET" && rustup default stable
+      - name: Build
+        run: cargo build --release --locked --target "$TARGET"
+      - name: Upload the binary
+        run: |
+          archive="kbd-layout-switch-$TARGET.tar.gz"
+          tar -C "target/$TARGET/release" -czf "$archive" kbd-layout-switch
+          gh release upload "$TAG" "$archive" --clobber

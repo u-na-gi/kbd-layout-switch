@@ -5,9 +5,16 @@ edition = "2024"
 description = "Switch the GNOME keyboard layout when a Bluetooth keyboard connects"
 repository = "https://github.com/u-na-gi/kbd-layout-switch"
 readme = "README.md"
+license = "MIT"
 keywords = ["gnome", "keyboard", "bluetooth", "xkb"]
 categories = ["command-line-utilities"]
 
 [dependencies]
 clap = { version = "4.6.9", features = ["derive"] }
 zbus = "6.5.0"
+
+# Prebuilt binaries for cargo-binstall, attached to each GitHub release.
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-{ target }.tar.gz"
+pkg-fmt = "tgz"
+bin-dir = "{ bin }{ binary-ext }"

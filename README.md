@@ -16,15 +16,28 @@ events on D-Bus and rewrites the xkb entry of
 - GNOME (Wayland or X11), with the `gsettings` command
 - BlueZ
 - systemd, for the user service
-- A Rust toolchain to build it
+- A Rust toolchain to build it, unless you use a prebuilt binary
 
-Tested on Fedora 45 with GNOME 51.
+## Tested with
+
+- Fedora 45, GNOME 51 (Wayland)
+- Built-in keyboard: Intel MacBook, JIS layout (butterfly keyboard)
+- Bluetooth keyboard: Split65, US layout
 
 ## Install
 
 ```sh
 cargo install --git https://github.com/u-na-gi/kbd-layout-switch
 ```
+
+Or, to download a prebuilt binary instead of compiling, with
+[cargo-binstall](https://github.com/cargo-bins/cargo-binstall):
+
+```sh
+cargo binstall --git https://github.com/u-na-gi/kbd-layout-switch kbd-layout-switch
+```
+
+Prebuilt binaries are static and available for x86_64 and aarch64 Linux.
 
 Then install and start the systemd user service. `--device` is a prefix of the
 keyboard's name as shown by `bluetoothctl devices`:
@@ -75,3 +88,7 @@ journalctl --user -u kbd-layout-switch
 kbd-layout-switch uninstall
 cargo uninstall kbd-layout-switch
 ```
+
+## License
+
+[MIT](LICENSE)
