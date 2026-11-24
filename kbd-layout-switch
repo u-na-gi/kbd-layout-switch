@@ -1,0 +1,97 @@
+#!/usr/bin/python3
+"""Switch the GNOME xkb layout depending on whether an external keyboard
+is connected over Bluetooth.
+
+Connected     -> EXTERNAL_LAYOUT (US)
+Not connected -> INTERNAL_LAYOUT (JIS, for the built-in keyboard)
+
+Non-xkb input sources (e.g. ibus/mozc) are left untouched; Mozc uses the
+"default" layout, i.e. it follows whichever xkb layout was applied last.
+"""
+import gi
+
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib
+
+DEVICE_NAME_PREFIX = "Split65"
+EXTERNAL_LAYOUT = "us"
+INTERNAL_LAYOUT = "jp"
+
+BLUEZ = "org.bluez"
+DEVICE_IFACE = "org.bluez.Device1"
+
+bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+settings = Gio.Settings.new("org.gnome.desktop.input-sources")
+pending = 0
+
+
+def external_connected():
+    try:
+        (objects,) = bus.call_sync(
+            BLUEZ, "/", "org.freedesktop.DBus.ObjectManager",
+            "GetManagedObjects", None, None,
+            Gio.DBusCallFlags.NONE, 3000, None,
+        ).unpack()
+    except GLib.Error:
+        return False  # bluetoothd not running
+    for ifaces in objects.values():
+        dev = ifaces.get(DEVICE_IFACE)
+        if not dev or not dev.get("Connected"):
+            continue
+        name = dev.get("Name") or dev.get("Alias") or ""
+        if name.startswith(DEVICE_NAME_PREFIX):
+            return True
+    return False
+
+
+def set_sources(sources):
+    settings.set_value("sources", GLib.Variant("a(ss)", sources))
+    Gio.Settings.sync()
+    return GLib.SOURCE_REMOVE
+
+
+def apply():
+    global pending
+    pending = 0
+    layout = EXTERNAL_LAYOUT if external_connected() else INTERNAL_LAYOUT
+    current = settings.get_value("sources").unpack()
+    wanted, seen_xkb = [], False
+    for kind, ident in current:
+        if kind == "xkb":
+            if not seen_xkb:
+                wanted.append(("xkb", layout))
+                seen_xkb = True
+        else:
+            wanted.append((kind, ident))
+    if not seen_xkb:
+        wanted.insert(0, ("xkb", layout))
+    if wanted == current:
+        return GLib.SOURCE_REMOVE
+    print(f"switching layout -> {layout}", flush=True)
+    # Two steps: first leave only the xkb source so the shell activates it
+    # (and actually loads the new keymap), then restore the other sources.
+    set_sources([("xkb", layout)])
+    GLib.timeout_add(400, set_sources, wanted)
+    return GLib.SOURCE_REMOVE
+
+
+def schedule(*_args):
+    global pending
+    if pending:
+        GLib.source_remove(pending)
+    pending = GLib.timeout_add(500, apply)
+
+
+# Any bluez property change / device add / removal / daemon restart.
+bus.signal_subscribe(BLUEZ, "org.freedesktop.DBus.Properties",
+                     "PropertiesChanged", None, DEVICE_IFACE,
+                     Gio.DBusSignalFlags.NONE, schedule)
+for member in ("InterfacesAdded", "InterfacesRemoved"):
+    bus.signal_subscribe(BLUEZ, "org.freedesktop.DBus.ObjectManager",
+                         member, None, None,
+                         Gio.DBusSignalFlags.NONE, schedule)
+Gio.bus_watch_name_on_connection(bus, BLUEZ, Gio.BusNameWatcherFlags.NONE,
+                                 schedule, schedule)
+
+schedule()
+GLib.MainLoop().run()
