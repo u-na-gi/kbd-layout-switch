@@ -89,6 +89,12 @@ kbd-layout-switch uninstall
 cargo uninstall kbd-layout-switch
 ```
 
+## Contributing
+
+This has only been tested with the keyboards listed above. Pull requests that
+make it work with other keyboards, layouts or desktop setups are very welcome,
+and so are reports of what did or did not work for you.
+
 ## License
 
 [MIT](LICENSE)
